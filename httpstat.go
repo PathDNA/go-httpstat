@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -27,13 +28,6 @@ type Result struct {
 	StartTransfer time.Duration
 	total         time.Duration
 
-	t0 time.Time
-	t1 time.Time
-	t2 time.Time
-	t3 time.Time
-	t4 time.Time
-	t5 time.Time // need to be provided from outside
-
 	dnsStart      time.Time
 	dnsDone       time.Time
 	tcpStart      time.Time
@@ -43,17 +37,20 @@ type Result struct {
 	serverStart   time.Time
 	serverDone    time.Time
 	transferStart time.Time
-	trasferDone   time.Time // need to be provided from outside
+	transferDone  time.Time // need to be provided from outside
 
 	// isTLS is true when connection seems to use TLS
 	isTLS bool
 
 	// isReused is true when connection is reused (keep-alive)
 	isReused bool
+
+	m sync.RWMutex
 }
 
-func (r *Result) durations() map[string]time.Duration {
-	return map[string]time.Duration{
+func (r *Result) durations() (m map[string]time.Duration) {
+	r.m.RLock()
+	m = map[string]time.Duration{
 		"DNSLookup":        r.DNSLookup,
 		"TCPConnection":    r.TCPConnection,
 		"TLSHandshake":     r.TLSHandshake,
@@ -66,10 +63,13 @@ func (r *Result) durations() map[string]time.Duration {
 		"StartTransfer": r.StartTransfer,
 		"Total":         r.total,
 	}
+	r.m.RUnlock()
+	return
 }
 
 // Format formats stats result.
-func (r Result) Format(s fmt.State, verb rune) {
+func (r *Result) Format(s fmt.State, verb rune) {
+	r.m.RLock()
 	switch verb {
 	case 'v':
 		if s.Flag('+') {
@@ -106,7 +106,7 @@ func (r Result) Format(s fmt.State, verb rune) {
 				fmt.Fprintf(&buf, "Total:          %4s ms\n", "-")
 			}
 			io.WriteString(s, buf.String())
-			return
+			break
 		}
 
 		fallthrough
@@ -114,8 +114,8 @@ func (r Result) Format(s fmt.State, verb rune) {
 		d := r.durations()
 		list := make([]string, 0, len(d))
 		for k, v := range d {
-			// Handle when End function is not called
-			if (k == "ContentTransfer" || k == "Total") && r.t5.IsZero() {
+			// Handle when Done function is not called
+			if (k == "ContentTransfer" || k == "Total") && r.transferDone.IsZero() {
 				list = append(list, fmt.Sprintf("%s: - ms", k))
 				continue
 			}
@@ -123,7 +123,7 @@ func (r Result) Format(s fmt.State, verb rune) {
 		}
 		io.WriteString(s, strings.Join(list, ", "))
 	}
-
+	r.m.RUnlock()
 }
 
 // WithHTTPStat is a wrapper of httptrace.WithClientTrace. It records the

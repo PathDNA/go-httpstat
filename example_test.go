@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tcnksm/go-httpstat"
+	"github.com/PathDNA/go-httpstat"
 )
 
 func Example() {
@@ -31,8 +31,8 @@ func Example() {
 		log.Fatal(err)
 	}
 	res.Body.Close()
-	result.End(time.Now())
+	result.Done(time.Now())
 
 	// Show results
-	log.Printf("%+v", result)
+	log.Printf("%+v", &result)
 }

@@ -36,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 	res.Body.Close()
-	result.End(time.Now())
+	result.Done(time.Now())
 
 	fmt.Printf("%+v\n", result)
 }
